@@ -1,0 +1,19 @@
+{
+  "name": "igreja-app",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm-run-all -p dev:*",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/api && npm run build -w apps/web",
+    "start:api": "npm run start -w apps/api",
+    "preview:web": "npm run preview -w apps/web"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5"
+  }
+}
