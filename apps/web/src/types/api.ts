@@ -38,3 +38,38 @@ export interface Member {
   celula: string;
   enderecoBairro: string;
 }
+
+export interface AmorDecision {
+  _row: number;
+  id: string;
+  dataCadastro: string;
+  nome: string;
+  telefone: string;
+  endereco: string;
+  decisao: string;
+  decidiuNo: string;
+  jaEmCelula: string;
+  responsavel: string;
+  dataNascimento: string;
+  tipoCelulaInteresse: string;
+  bairro: string;
+  convidadoPor: string;
+  idade: string;
+  opcaoCelula: string;
+}
+
+export interface AbrigoAluno {
+  _row: number;
+  id: string;
+  nome: string;
+  celula: string;
+  totalLicoes: number;
+  aulasFeitas: string;
+  licoesFaltando: number;
+  aulasFaltando: string;
+  statusConclusao: string;
+  progresso: string;
+  concluido: boolean;
+}
+
+export const ABRIGO_TOTAL_LICOES = 10;

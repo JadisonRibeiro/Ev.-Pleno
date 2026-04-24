@@ -21,6 +21,10 @@ const schema = z.object({
   SHEETS_CELULAS_TAB: z.string().default('DADOS'),
   SHEETS_MEMBROS_ID: z.string().min(10),
   SHEETS_MEMBROS_TAB: z.string().default('Respostas ao formulário 1'),
+  SHEETS_AMOR_ID: z.string().min(10),
+  SHEETS_AMOR_TAB: z.string().default('Respostas ao formulário 1'),
+  SHEETS_ABRIGO_ID: z.string().min(10),
+  SHEETS_ABRIGO_TAB: z.string().default('Abrigo_Total'),
 
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   GOOGLE_APPLICATION_CREDENTIALS: z
@@ -60,8 +64,13 @@ export interface SheetRef {
   tab: string;
 }
 
-export const SHEETS: Record<'usuarios' | 'celulas' | 'membros', SheetRef> = {
+export const SHEETS: Record<
+  'usuarios' | 'celulas' | 'membros' | 'amor' | 'abrigo',
+  SheetRef
+> = {
   usuarios: { id: config.SHEETS_USUARIOS_ID, tab: config.SHEETS_USUARIOS_TAB },
   celulas: { id: config.SHEETS_CELULAS_ID, tab: config.SHEETS_CELULAS_TAB },
   membros: { id: config.SHEETS_MEMBROS_ID, tab: config.SHEETS_MEMBROS_TAB },
+  amor: { id: config.SHEETS_AMOR_ID, tab: config.SHEETS_AMOR_TAB },
+  abrigo: { id: config.SHEETS_ABRIGO_ID, tab: config.SHEETS_ABRIGO_TAB },
 };

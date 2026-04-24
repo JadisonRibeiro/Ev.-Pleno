@@ -7,6 +7,8 @@ import {
   Home as HomeIcon,
   LogOut,
   KeyRound,
+  Heart,
+  BookOpen,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-store';
 import { cn } from '@/utils/cn';
@@ -17,6 +19,8 @@ const nav = [
   { to: '/', label: 'Visão geral', icon: LayoutDashboard },
   { to: '/membros', label: 'Membros', icon: Users },
   { to: '/celula', label: 'Minha célula', icon: HomeIcon },
+  { to: '/amor', label: 'Amor', icon: Heart },
+  { to: '/abrigo', label: 'Abrigo', icon: BookOpen },
   { to: '/mapa', label: 'Mapa', icon: MapPin },
 ];
 

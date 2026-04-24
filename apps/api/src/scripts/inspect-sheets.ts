@@ -21,6 +21,8 @@ const TARGETS = [
   { label: 'USUARIOS', id: '16unATkAmo65RHoG9RrqjeM6ZBEY1mY2coU-Mu1ghDwA' },
   { label: 'MEMBROS', id: '14JuuUVcDXbA5L2nmOE2jsGETkdBTeMsiqwaCsI-uNFQ' },
   { label: 'CELULAS', id: '198RMrIpfe91_xzP9_17fktEM5t2-rWkibhUQ2-wcPy4' },
+  { label: 'AMOR', id: '18OSeu8CGBgKGhMSAJoel7rxP8kYsRf7Yc_nWnKacZis' },
+  { label: 'ABRIGO', id: '1FoKK4W4CavBJeJK4V_9kLWejfpt6CmCoSK5-u75sw5Q' },
 ];
 
 async function main() {

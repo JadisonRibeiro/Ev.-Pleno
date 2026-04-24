@@ -105,3 +105,74 @@ export const MEMBER_COLUMNS = {
   celula: 'Célula',
   enderecoBairro: 'Endereço e Bairro',
 } as const;
+
+/**
+ * Planilha do Amor — aba `Respostas ao formulário 1`.
+ * Decisões de aceitar Jesus ou reconciliação.
+ */
+export interface AmorDecision {
+  _row: number;
+  id: string;
+  dataCadastro: string;
+  nome: string;
+  telefone: string;
+  endereco: string;
+  decisao: string;         // "Aceitou Jesus" / "Reconciliação" / etc.
+  decidiuNo: string;       // evento/local
+  jaEmCelula: string;      // "Sim"/"Não"
+  responsavel: string;
+  dataNascimento: string;
+  tipoCelulaInteresse: string;
+  bairro: string;
+  convidadoPor: string;
+  idade: string;
+  opcaoCelula: string;     // qual célula a pessoa optou
+}
+
+export const AMOR_COLUMNS = {
+  dataCadastro: 'Carimbo de data/hora',
+  nome: 'Nome Completo\n',
+  telefone: 'Telefone',
+  endereco: 'Endereço',
+  decisao: 'Decisão',
+  decidiuNo: 'Decidiu no:',
+  jaEmCelula: 'Já participou de célula?',
+  responsavel: 'Responsável pelo preenchimento ', // trailing space
+  dataNascimento: 'Data de Nascimento',
+  tipoCelulaInteresse: 'Tipo de Célula de interesse',
+  bairro: 'Bairro',
+  convidadoPor: 'Foi convidado por alguém? ( Nome /Célula / Telefone / referência)',
+  idade: 'IDADE',
+  opcaoCelula: 'OPÇÃO DE CÉLULA',
+} as const;
+
+/**
+ * Planilha do Abrigo — aba `Abrigo_Total` (já agregada).
+ * Cada linha = um aluno com progresso no programa de 10 lições.
+ */
+export interface AbrigoAluno {
+  _row: number;
+  id: string;
+  nome: string;
+  celula: string;
+  totalLicoes: number;   // 0–10
+  aulasFeitas: string;   // texto com lista, ex.: "1, 3, 5"
+  licoesFaltando: number;
+  aulasFaltando: string;
+  statusConclusao: string; // "Concluído" / "Em andamento"
+  progresso: string;     // pode ser % ou texto
+  concluido: boolean;    // derivado: totalLicoes >= 10
+}
+
+export const ABRIGO_COLUMNS = {
+  nome: 'Aluno(a)',
+  celula: 'Célula Atual',
+  totalLicoes: 'Total Lições Feitas',
+  aulasFeitas: 'Aulas Feitas',
+  licoesFaltando: 'Lições Faltando',
+  aulasFaltando: 'Aulas Faltando',
+  statusConclusao: 'Status de conclusão',
+  progresso: 'Progresso',
+} as const;
+
+export const ABRIGO_TOTAL_LICOES = 10;

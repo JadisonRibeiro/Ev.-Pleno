@@ -2,12 +2,22 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 import App from './App';
 import './index.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false },
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+      // Não retentar em 401/403 — credencial não vai "melhorar" retentando.
+      retry: (failureCount, error) => {
+        const status = (error as AxiosError)?.response?.status;
+        if (status === 401 || status === 403) return false;
+        return failureCount < 1;
+      },
+    },
   },
 });
 

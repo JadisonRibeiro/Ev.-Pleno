@@ -8,6 +8,8 @@ import authRoutes from './routes/auth.routes.js';
 import cellsRoutes from './routes/cells.routes.js';
 import membersRoutes from './routes/members.routes.js';
 import publicRoutes from './routes/public.routes.js';
+import amorRoutes from './routes/amor.routes.js';
+import abrigoRoutes from './routes/abrigo.routes.js';
 
 const app = express();
 
@@ -32,6 +34,8 @@ app.use('/public', publicRoutes);
 app.use('/auth', authRoutes);
 app.use('/cells', cellsRoutes);
 app.use('/members', membersRoutes);
+app.use('/amor', amorRoutes);
+app.use('/abrigo', abrigoRoutes);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('[api] erro não tratado:', err);

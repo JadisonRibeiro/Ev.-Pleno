@@ -6,6 +6,8 @@ import DashboardPage from '@/pages/DashboardPage';
 import MembersPage from '@/pages/MembersPage';
 import CellPage from '@/pages/CellPage';
 import MapPage from '@/pages/MapPage';
+import AmorPage from '@/pages/AmorPage';
+import AbrigoPage from '@/pages/AbrigoPage';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const user = useAuth((s) => s.user);
@@ -46,6 +48,22 @@ export default function App() {
         element={
           <Protected>
             <MapPage />
+          </Protected>
+        }
+      />
+      <Route
+        path="/amor"
+        element={
+          <Protected>
+            <AmorPage />
+          </Protected>
+        }
+      />
+      <Route
+        path="/abrigo"
+        element={
+          <Protected>
+            <AbrigoPage />
           </Protected>
         }
       />
