@@ -1,4 +1,4 @@
-import { readSheet, updateRow } from '../lib/sheets.js';
+import { appendRow, deleteRow, readSheet, updateRow } from '../lib/sheets.js';
 import { TTLCache } from '../lib/cache.js';
 import { SHEETS } from '../config.js';
 import { MEMBER_COLUMNS, type Member } from '../types/domain.js';
@@ -77,5 +77,52 @@ export async function updateMember(
     raw[MEMBER_COLUMNS.enderecoBairro] = updates.enderecoBairro;
 
   await updateRow(SHEETS.membros, row, raw);
+  cache.invalidate();
+}
+
+export async function createMember(
+  input: Partial<Omit<Member, '_row' | 'id'>>,
+): Promise<Member> {
+  const raw: Record<string, string> = {};
+  raw[MEMBER_COLUMNS.dataCadastro] =
+    input.dataCadastro || new Date().toLocaleString('pt-BR');
+  if (input.nome !== undefined) raw[MEMBER_COLUMNS.nome] = input.nome;
+  if (input.telefone !== undefined) raw[MEMBER_COLUMNS.telefone] = input.telefone;
+  if (input.dataNascimento !== undefined)
+    raw[MEMBER_COLUMNS.dataNascimento] = input.dataNascimento;
+  if (input.endereco !== undefined) raw[MEMBER_COLUMNS.endereco] = input.endereco;
+  if (input.bairro !== undefined) raw[MEMBER_COLUMNS.bairro] = input.bairro;
+  if (input.abrigo !== undefined) raw[MEMBER_COLUMNS.abrigo] = input.abrigo;
+  if (input.batismo !== undefined) raw[MEMBER_COLUMNS.batismo] = input.batismo;
+  if (input.encontroDeus !== undefined)
+    raw[MEMBER_COLUMNS.encontroDeus] = input.encontroDeus;
+  if (input.escolaDiscipulos !== undefined)
+    raw[MEMBER_COLUMNS.escolaDiscipulos] = input.escolaDiscipulos;
+  if (input.celula !== undefined) raw[MEMBER_COLUMNS.celula] = input.celula;
+  if (input.enderecoBairro !== undefined)
+    raw[MEMBER_COLUMNS.enderecoBairro] = input.enderecoBairro;
+
+  const row = await appendRow(SHEETS.membros, raw);
+  cache.invalidate();
+  return {
+    _row: row,
+    id: `m-${row}`,
+    dataCadastro: raw[MEMBER_COLUMNS.dataCadastro] ?? '',
+    nome: raw[MEMBER_COLUMNS.nome] ?? '',
+    telefone: raw[MEMBER_COLUMNS.telefone] ?? '',
+    dataNascimento: raw[MEMBER_COLUMNS.dataNascimento] ?? '',
+    endereco: raw[MEMBER_COLUMNS.endereco] ?? '',
+    bairro: raw[MEMBER_COLUMNS.bairro] ?? '',
+    abrigo: raw[MEMBER_COLUMNS.abrigo] ?? '',
+    batismo: raw[MEMBER_COLUMNS.batismo] ?? '',
+    encontroDeus: raw[MEMBER_COLUMNS.encontroDeus] ?? '',
+    escolaDiscipulos: raw[MEMBER_COLUMNS.escolaDiscipulos] ?? '',
+    celula: raw[MEMBER_COLUMNS.celula] ?? '',
+    enderecoBairro: raw[MEMBER_COLUMNS.enderecoBairro] ?? '',
+  };
+}
+
+export async function deleteMember(row: number): Promise<void> {
+  await deleteRow(SHEETS.membros, row);
   cache.invalidate();
 }

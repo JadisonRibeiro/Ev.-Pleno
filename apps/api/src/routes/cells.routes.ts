@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, canAccessCell } from '../middleware/auth.js';
+import { requireAuth, requireRole, canAccessCell } from '../middleware/auth.js';
 import {
+  createCell,
   findCellByName,
   isActive,
   listCells,
@@ -56,7 +57,44 @@ const updateSchema = z.object({
   longitude: z.string().optional(),
   tipo: z.string().optional(),
   cor: z.string().optional(),
+  lider: z.string().optional(),
+  fotoPerfil: z.string().optional(),
 });
+
+const createSchema = z.object({
+  nome: z.string().trim().min(2, 'Informe o nome da célula'),
+  lider: z.string().optional(),
+  status: z.string().optional(),
+  cidade: z.string().optional(),
+  bairro: z.string().optional(),
+  endereco: z.string().optional(),
+  latitude: z.string().optional(),
+  longitude: z.string().optional(),
+  tipo: z.string().optional(),
+  cor: z.string().optional(),
+  fotoPerfil: z.string().optional(),
+});
+
+router.post(
+  '/',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const parsed = createSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res
+        .status(400)
+        .json({ error: 'Dados inválidos', details: parsed.error.flatten() });
+    }
+    const existing = await findCellByName(parsed.data.nome);
+    if (existing) {
+      return res
+        .status(409)
+        .json({ error: 'Já existe uma célula com esse nome' });
+    }
+    const cell = await createCell(parsed.data);
+    res.status(201).json({ cell });
+  }),
+);
 
 router.patch(
   '/:nome',
@@ -73,8 +111,11 @@ router.patch(
       return res.status(400).json({ error: 'Dados inválidos', details: parsed.error.flatten() });
     }
     const updates = { ...parsed.data };
-    if (updates.status !== undefined && req.user!.role !== 'admin') {
+    // Apenas admin pode alterar status, líder e foto de perfil.
+    if (req.user!.role !== 'admin') {
       delete updates.status;
+      delete updates.lider;
+      delete updates.fotoPerfil;
     }
     await updateCell(cell._row, updates);
     res.json({ ok: true });

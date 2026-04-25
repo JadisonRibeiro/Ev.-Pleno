@@ -3,11 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Save, MapPin } from 'lucide-react';
+import { MapPin, Save } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import type { Cell } from '@/types/api';
+import { apiError } from '@/lib/error';
 import { Field } from '@/components/Field';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { toast } from '@/components/ui/Toaster';
 
 const schema = z.object({
   status: z.string().optional(),
@@ -23,6 +26,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default function CellPage() {
   const user = useAuth((s) => s.user)!;
+  const isAdmin = user.role === 'admin';
   const qc = useQueryClient();
 
   const { data: cell, isLoading } = useQuery({
@@ -31,8 +35,12 @@ export default function CellPage() {
       (await api.get<{ cell: Cell }>(`/cells/${encodeURIComponent(user.celula)}`)).data.cell,
   });
 
-  const { register, handleSubmit, reset, formState: { errors, isDirty } } =
-    useForm<FormValues>({ resolver: zodResolver(schema) });
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isDirty },
+  } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
     if (cell) {
@@ -56,24 +64,36 @@ export default function CellPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['cell'] });
       qc.invalidateQueries({ queryKey: ['cells'] });
+      toast.success('Célula atualizada');
     },
+    onError: (err) => toast.error('Erro ao salvar', apiError(err)),
   });
 
-  if (isLoading) return <p className="text-text-muted">Carregando célula…</p>;
-  if (!cell) return <p className="text-text-muted">Célula não encontrada.</p>;
+  if (isLoading)
+    return <p className="text-text-muted">Carregando célula…</p>;
+  if (!cell)
+    return <p className="text-text-muted">Célula não encontrada.</p>;
 
   return (
     <section className="animate-fade-up">
-      <header className="mb-6">
-        <p className="kicker">Minha célula</p>
-        <h1 className="page-title mt-1">{cell.nome}</h1>
-        <p className="page-subtitle">Líder: {cell.lider}</p>
-      </header>
+      <PageHeader
+        kicker="Minha célula"
+        title={cell.nome}
+        subtitle={`Líder: ${cell.lider || '—'}`}
+      />
 
-      <form onSubmit={handleSubmit((v) => save.mutate(v))} className="card space-y-4" noValidate>
+      <form
+        onSubmit={handleSubmit((v) => save.mutate(v))}
+        className="card space-y-4"
+        noValidate
+      >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Field label="Status" error={errors.status?.message}>
-            <select className="select" {...register('status')}>
+            <select
+              className="select"
+              {...register('status')}
+              disabled={!isAdmin}
+            >
               <option value="">—</option>
               <option value="Ativa">Ativa</option>
               <option value="Pausada">Pausada</option>
@@ -117,7 +137,11 @@ export default function CellPage() {
             <MapPin size={14} />
             As coordenadas alimentam o mapa de células.
           </p>
-          <button type="submit" className="btn-primary" disabled={!isDirty || save.isPending}>
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={!isDirty || save.isPending}
+          >
             <Save size={16} />
             {save.isPending ? 'Salvando…' : 'Salvar alterações'}
           </button>

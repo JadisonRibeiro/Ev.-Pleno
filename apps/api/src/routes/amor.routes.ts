@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, canAccessCell, requireRole } from '../middleware/auth.js';
 import {
+  createDecision,
+  deleteAmor,
   findDecisionById,
   listDecisions,
   listDecisionsByCell,
@@ -38,7 +40,7 @@ router.get(
   }),
 );
 
-const updateSchema = z.object({
+const decisionSchema = z.object({
   nome: z.string().min(2).optional(),
   telefone: z.string().optional(),
   endereco: z.string().optional(),
@@ -54,18 +56,52 @@ const updateSchema = z.object({
   opcaoCelula: z.string().optional(),
 });
 
-// Edição só por admin (dados sensíveis de decisão pastoral)
+const createSchema = decisionSchema.extend({
+  nome: z.string().min(2, 'Nome obrigatório'),
+});
+
+// Cria decisão — admin grava qualquer opção; líder só cria com sua célula
+router.post(
+  '/',
+  asyncHandler(async (req, res) => {
+    const parsed = createSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res
+        .status(400)
+        .json({ error: 'Dados inválidos', details: parsed.error.flatten() });
+    }
+    const data = { ...parsed.data };
+    if (req.user!.role !== 'admin') {
+      data.opcaoCelula = req.user!.celula;
+      data.responsavel = data.responsavel || req.user!.nome;
+    }
+    const decision = await createDecision(data);
+    res.status(201).json({ decision });
+  }),
+);
+
 router.patch(
   '/:id',
   requireRole('admin'),
   asyncHandler(async (req, res) => {
     const d = await findDecisionById(req.params.id ?? '');
     if (!d) return res.status(404).json({ error: 'Decisão não encontrada' });
-    const parsed = updateSchema.safeParse(req.body);
+    const parsed = decisionSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Dados inválidos', details: parsed.error.flatten() });
     }
     await updateDecision(d._row, parsed.data);
+    res.json({ ok: true });
+  }),
+);
+
+router.delete(
+  '/:id',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const d = await findDecisionById(req.params.id ?? '');
+    if (!d) return res.status(404).json({ error: 'Decisão não encontrada' });
+    await deleteAmor(d._row);
     res.json({ ok: true });
   }),
 );

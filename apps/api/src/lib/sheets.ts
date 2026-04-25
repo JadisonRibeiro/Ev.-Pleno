@@ -108,3 +108,76 @@ export async function updateRow(
     requestBody: { valueInputOption: 'USER_ENTERED', data },
   });
 }
+
+/**
+ * Acrescenta uma linha no fim da aba, mapeando colunas pelo header.
+ * Retorna o número da linha criada (1-based, considerando header).
+ */
+export async function appendRow(
+  ref: SheetRef,
+  values: Record<string, string | number | boolean | null | undefined>,
+): Promise<number> {
+  const header = await getHeader(ref);
+  if (header.length === 0) {
+    throw new Error(`Aba "${ref.tab}" não tem header (linha 1 vazia).`);
+  }
+  const sheets = getSheetsClient();
+  const row = header.map((key) => {
+    const v = values[key];
+    return v === undefined || v === null ? '' : String(v);
+  });
+  const res = await sheets.spreadsheets.values.append({
+    spreadsheetId: ref.id,
+    range: quoteTab(ref.tab),
+    valueInputOption: 'USER_ENTERED',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: [row] },
+  });
+  // updatedRange vem no formato `'aba'!A12:L12` — extrai o número
+  const updated = res.data.updates?.updatedRange ?? '';
+  const m = updated.match(/!(?:[A-Z]+)(\d+)(?::|$)/);
+  return m ? Number(m[1]) : -1;
+}
+
+/** Resolve o sheetId numérico (gid) de uma aba pelo nome. */
+async function resolveSheetId(ref: SheetRef): Promise<number> {
+  const sheets = getSheetsClient();
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: ref.id,
+    fields: 'sheets(properties(sheetId,title))',
+  });
+  const match = meta.data.sheets?.find(
+    (s) => (s.properties?.title ?? '') === ref.tab,
+  );
+  if (!match?.properties?.sheetId && match?.properties?.sheetId !== 0) {
+    throw new Error(`Aba "${ref.tab}" não encontrada na planilha ${ref.id}`);
+  }
+  return match.properties.sheetId;
+}
+
+/**
+ * Remove a linha indicada (1-based, considerando header). Atenção:
+ * isso desloca todas as linhas abaixo — o cache deve ser invalidado.
+ */
+export async function deleteRow(ref: SheetRef, row: number): Promise<void> {
+  if (row < 2) throw new Error('Não é permitido remover a linha de cabeçalho.');
+  const sheets = getSheetsClient();
+  const sheetId = await resolveSheetId(ref);
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: ref.id,
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId,
+              dimension: 'ROWS',
+              startIndex: row - 1, // 0-based
+              endIndex: row,
+            },
+          },
+        },
+      ],
+    },
+  });
+}

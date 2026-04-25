@@ -1,4 +1,4 @@
-import { readSheet, updateRow } from '../lib/sheets.js';
+import { appendRow, deleteRow, readSheet, updateRow } from '../lib/sheets.js';
 import { TTLCache } from '../lib/cache.js';
 import { SHEETS } from '../config.js';
 import { AMOR_COLUMNS, type AmorDecision } from '../types/domain.js';
@@ -79,5 +79,55 @@ export async function updateDecision(
   if (updates.opcaoCelula !== undefined) raw[AMOR_COLUMNS.opcaoCelula] = updates.opcaoCelula;
 
   await updateRow(SHEETS.amor, row, raw);
+  cache.invalidate();
+}
+
+export async function createDecision(
+  input: Partial<Omit<AmorDecision, '_row' | 'id'>>,
+): Promise<AmorDecision> {
+  const raw: Record<string, string> = {};
+  raw[AMOR_COLUMNS.dataCadastro] =
+    input.dataCadastro || new Date().toLocaleString('pt-BR');
+  if (input.nome !== undefined) raw[AMOR_COLUMNS.nome] = input.nome;
+  if (input.telefone !== undefined) raw[AMOR_COLUMNS.telefone] = input.telefone;
+  if (input.endereco !== undefined) raw[AMOR_COLUMNS.endereco] = input.endereco;
+  if (input.decisao !== undefined) raw[AMOR_COLUMNS.decisao] = input.decisao;
+  if (input.decidiuNo !== undefined) raw[AMOR_COLUMNS.decidiuNo] = input.decidiuNo;
+  if (input.jaEmCelula !== undefined) raw[AMOR_COLUMNS.jaEmCelula] = input.jaEmCelula;
+  if (input.responsavel !== undefined) raw[AMOR_COLUMNS.responsavel] = input.responsavel;
+  if (input.dataNascimento !== undefined)
+    raw[AMOR_COLUMNS.dataNascimento] = input.dataNascimento;
+  if (input.tipoCelulaInteresse !== undefined)
+    raw[AMOR_COLUMNS.tipoCelulaInteresse] = input.tipoCelulaInteresse;
+  if (input.bairro !== undefined) raw[AMOR_COLUMNS.bairro] = input.bairro;
+  if (input.convidadoPor !== undefined)
+    raw[AMOR_COLUMNS.convidadoPor] = input.convidadoPor;
+  if (input.idade !== undefined) raw[AMOR_COLUMNS.idade] = input.idade;
+  if (input.opcaoCelula !== undefined) raw[AMOR_COLUMNS.opcaoCelula] = input.opcaoCelula;
+
+  const row = await appendRow(SHEETS.amor, raw);
+  cache.invalidate();
+  return {
+    _row: row,
+    id: `amor-${row}`,
+    dataCadastro: raw[AMOR_COLUMNS.dataCadastro] ?? '',
+    nome: raw[AMOR_COLUMNS.nome] ?? '',
+    telefone: raw[AMOR_COLUMNS.telefone] ?? '',
+    endereco: raw[AMOR_COLUMNS.endereco] ?? '',
+    decisao: raw[AMOR_COLUMNS.decisao] ?? '',
+    decidiuNo: raw[AMOR_COLUMNS.decidiuNo] ?? '',
+    jaEmCelula: raw[AMOR_COLUMNS.jaEmCelula] ?? '',
+    responsavel: raw[AMOR_COLUMNS.responsavel] ?? '',
+    dataNascimento: raw[AMOR_COLUMNS.dataNascimento] ?? '',
+    tipoCelulaInteresse: raw[AMOR_COLUMNS.tipoCelulaInteresse] ?? '',
+    bairro: raw[AMOR_COLUMNS.bairro] ?? '',
+    convidadoPor: raw[AMOR_COLUMNS.convidadoPor] ?? '',
+    idade: raw[AMOR_COLUMNS.idade] ?? '',
+    opcaoCelula: raw[AMOR_COLUMNS.opcaoCelula] ?? '',
+  };
+}
+
+export async function deleteAmor(row: number): Promise<void> {
+  await deleteRow(SHEETS.amor, row);
   cache.invalidate();
 }

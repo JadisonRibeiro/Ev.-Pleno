@@ -162,6 +162,8 @@ export interface AbrigoAluno {
   statusConclusao: string; // "Concluído" / "Em andamento"
   progresso: string;     // pode ser % ou texto
   concluido: boolean;    // derivado: totalLicoes >= 10
+  /** Data de cadastro do membro (join por nome). String BR ou ''. */
+  dataCadastro?: string;
 }
 
 export const ABRIGO_COLUMNS = {
@@ -176,3 +178,12 @@ export const ABRIGO_COLUMNS = {
 } as const;
 
 export const ABRIGO_TOTAL_LICOES = 10;
+
+/**
+ * Aba `DADOS ` do Abrigo — lista das 10 aulas.
+ * 2 colunas: `x` (número/código) e `AULA` (título da lição).
+ */
+export interface AbrigoAula {
+  numero: string;
+  titulo: string;
+}

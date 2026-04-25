@@ -1,399 +1,854 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import {
   BookOpen,
-  CheckCircle2,
-  Clock,
+  Clock3,
   GraduationCap,
-  Search,
+  Hourglass,
   Pencil,
-  AlertCircle,
-  type LucideIcon,
+  Search,
+  Users,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
-import { ABRIGO_TOTAL_LICOES, type AbrigoAluno } from '@/types/api';
+import {
+  ABRIGO_TOTAL_LICOES,
+  type AbrigoAluno,
+  type AbrigoAula,
+} from '@/types/api';
 import { cn } from '@/utils/cn';
+import { useDebounced } from '@/hooks/useDebounced';
+import { apiError } from '@/lib/error';
+import { formatNumber, formatPct } from '@/lib/format';
+import { PageHeader } from '@/components/ui/PageHeader';
+import {
+  FilterBar,
+  FilterSelect,
+  SearchInput,
+  SegmentedControl,
+} from '@/components/ui/FilterBar';
+import { DataTable, type Column } from '@/components/ui/DataTable';
+import { IconButton } from '@/components/ui/IconButton';
+import { Tab, TabList, TabPanel, Tabs } from '@/components/ui/Tabs';
+import { Empty } from '@/components/ui/Empty';
+import { toast } from '@/components/ui/Toaster';
 import { AbrigoEditDialog } from '@/components/AbrigoEditDialog';
+
+type StatusFilter = 'todos' | 'concluidos' | 'andamento' | 'parados';
 
 export default function AbrigoPage() {
   const user = useAuth((s) => s.user)!;
   const isAdmin = user.role === 'admin';
   const qc = useQueryClient();
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<'todos' | 'concluidos' | 'andamento' | 'parados'>('todos');
-  const [editing, setEditing] = useState<AbrigoAluno | null>(null);
 
-  const { data: alunos = [], isLoading } = useQuery({
+  const [tab, setTab] = useState<
+    'alunos' | 'aulas' | 'formandos' | 'formacao'
+  >('alunos');
+
+  const alunosQ = useQuery({
     queryKey: ['abrigo'],
-    queryFn: async () => (await api.get<{ alunos: AbrigoAluno[] }>('/abrigo')).data.alunos,
+    queryFn: async () =>
+      (await api.get<{ alunos: AbrigoAluno[] }>('/abrigo')).data.alunos,
+  });
+  const aulasQ = useQuery({
+    queryKey: ['abrigo-aulas'],
+    queryFn: async () =>
+      (await api.get<{ aulas: AbrigoAula[] }>('/abrigo/aulas')).data.aulas,
   });
 
   const update = useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: Partial<AbrigoAluno> }) => {
+    mutationFn: async ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: Partial<AbrigoAluno>;
+    }) => {
       await api.patch(`/abrigo/${id}`, patch);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['abrigo'] });
-      setEditing(null);
+      toast.success('Progresso atualizado');
     },
+    onError: (err) => toast.error('Erro ao salvar', apiError(err)),
   });
+
+  const alunos = alunosQ.data ?? [];
+  const aulas = aulasQ.data ?? [];
 
   const stats = useMemo(() => {
     const total = alunos.length;
     const concluidos = alunos.filter((a) => a.concluido).length;
-    const andamento = alunos.filter((a) => a.totalLicoes > 0 && !a.concluido).length;
+    const emFormacao = alunos.filter((a) => a.totalLicoes === 9).length;
+    const andamento = alunos.filter(
+      (a) => a.totalLicoes > 0 && !a.concluido,
+    ).length;
     const parados = alunos.filter((a) => a.totalLicoes === 0).length;
-    const mediaLicoes = total === 0 ? 0 : alunos.reduce((s, a) => s + a.totalLicoes, 0) / total;
-    return { total, concluidos, andamento, parados, mediaLicoes };
+    return { total, concluidos, emFormacao, andamento, parados };
   }, [alunos]);
-
-  const distLicoes = useMemo(() => {
-    const buckets = Array.from({ length: ABRIGO_TOTAL_LICOES + 1 }, (_, i) => ({
-      label: `${i}`,
-      total: 0,
-    }));
-    for (const a of alunos) {
-      const i = Math.max(0, Math.min(ABRIGO_TOTAL_LICOES, Math.round(a.totalLicoes)));
-      const bucket = buckets[i];
-      if (bucket) bucket.total += 1;
-    }
-    return buckets;
-  }, [alunos]);
-
-  const byCell = useMemo(() => {
-    const m = new Map<string, { total: number; concluidos: number }>();
-    for (const a of alunos) {
-      const k = a.celula || 'Sem célula';
-      const cur = m.get(k) ?? { total: 0, concluidos: 0 };
-      cur.total += 1;
-      if (a.concluido) cur.concluidos += 1;
-      m.set(k, cur);
-    }
-    return [...m.entries()]
-      .map(([label, v]) => ({
-        label,
-        total: v.total,
-        concluidos: v.concluidos,
-        pct: v.total === 0 ? 0 : Math.round((v.concluidos / v.total) * 100),
-      }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 8);
-  }, [alunos]);
-
-  const filtered = useMemo(() => {
-    let list = alunos;
-    if (filter === 'concluidos') list = list.filter((a) => a.concluido);
-    else if (filter === 'andamento') list = list.filter((a) => a.totalLicoes > 0 && !a.concluido);
-    else if (filter === 'parados') list = list.filter((a) => a.totalLicoes === 0);
-
-    const q = query.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (a) => a.nome.toLowerCase().includes(q) || a.celula.toLowerCase().includes(q),
-      );
-    }
-    return list.sort((a, b) => b.totalLicoes - a.totalLicoes);
-  }, [alunos, query, filter]);
-
-  const pct = (n: number) => (stats.total === 0 ? 0 : Math.round((n / stats.total) * 100));
 
   return (
-    <section className="animate-fade-up space-y-6">
-      <header>
-        <p className="kicker">Escola de fé</p>
-        <h1 className="page-title mt-1">Abrigo</h1>
-        <p className="page-subtitle">
-          {isAdmin
-            ? `Programa de ${ABRIGO_TOTAL_LICOES} lições para conclusão.`
-            : `Alunos da célula ${user.celula}. Programa de ${ABRIGO_TOTAL_LICOES} lições.`}
-        </p>
-      </header>
+    <section className="animate-fade-up">
+      <PageHeader
+        kicker="Escola de fé"
+        title="Abrigo"
+        subtitle={
+          isAdmin
+            ? `Programa de ${ABRIGO_TOTAL_LICOES} lições · ${formatNumber(stats.total)} alunos`
+            : `Alunos da célula ${user.celula}`
+        }
+      />
 
-      {isLoading ? (
-        <div className="card text-text-muted">Carregando alunos…</div>
-      ) : (
-        <>
-          {/* KPIs */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KPI icon={BookOpen} label="Total de alunos" value={stats.total} />
-            <KPI
-              icon={CheckCircle2}
-              label="Concluíram (10/10)"
-              value={stats.concluidos}
-              hint={`${pct(stats.concluidos)}%`}
-            />
-            <KPI
-              icon={Clock}
-              label="Em andamento"
-              value={stats.andamento}
-              hint={`${pct(stats.andamento)}%`}
-            />
-            <KPI
-              icon={AlertCircle}
-              label="Não iniciaram"
-              value={stats.parados}
-              hint={`${pct(stats.parados)}%`}
-            />
-          </div>
+      {/* KPIs no topo */}
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Kpi
+          icon={Users}
+          label="Alunos no programa"
+          value={stats.total}
+          hint={`${aulas.length} aulas no total`}
+        />
+        <Kpi
+          icon={GraduationCap}
+          label="Formandos"
+          value={stats.concluidos}
+          hint={`${formatPct(pct(stats.concluidos, stats.total))} dos alunos`}
+          tone="success"
+        />
+        <Kpi
+          icon={Hourglass}
+          label="Em formação"
+          value={stats.emFormacao}
+          hint="Falta apenas 1 aula"
+          tone="primary"
+        />
+        <Kpi
+          icon={Clock3}
+          label="Em andamento"
+          value={stats.andamento}
+          hint={`${formatPct(pct(stats.andamento, stats.total))} dos alunos`}
+        />
+      </div>
 
-          {/* Médias + gráfico de distribuição */}
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="card lg:col-span-2">
-              <div className="mb-4">
-                <h2 className="text-sm font-semibold text-text">
-                  Distribuição por quantidade de lições feitas
-                </h2>
-                <p className="text-xs text-text-muted">
-                  Quantos alunos estão em cada estágio (0 a {ABRIGO_TOTAL_LICOES})
-                </p>
-              </div>
-              <div className="h-[240px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={distLicoes} margin={{ top: 8, right: 12, bottom: 0, left: -12 }}>
-                    <CartesianGrid stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="label" stroke="var(--text-subtle)" fontSize={11} tickLine={false} axisLine={false} />
-                    <YAxis stroke="var(--text-subtle)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} contentStyle={tooltipStyle} labelStyle={{ color: 'var(--text-muted)' }} />
-                    <Bar dataKey="total" radius={[4, 4, 0, 0]} fill="#f5f5f5" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+        <TabList className="mb-5">
+          <Tab value="alunos">
+            <span className="inline-flex items-center gap-1.5">
+              <Users size={14} /> Alunos
+            </span>
+          </Tab>
+          <Tab value="aulas">
+            <span className="inline-flex items-center gap-1.5">
+              <BookOpen size={14} /> Aulas
+            </span>
+          </Tab>
+          <Tab value="formacao">
+            <span className="inline-flex items-center gap-1.5">
+              <Hourglass size={14} /> Em formação
+            </span>
+          </Tab>
+          <Tab value="formandos">
+            <span className="inline-flex items-center gap-1.5">
+              <GraduationCap size={14} /> Formandos
+            </span>
+          </Tab>
+        </TabList>
 
-            <div className="card">
-              <div className="mb-4">
-                <h2 className="text-sm font-semibold text-text">Média de lições</h2>
-                <p className="text-xs text-text-muted">Por aluno</p>
-              </div>
-              <div className="flex h-[calc(100%-56px)] flex-col items-center justify-center">
-                <p className="text-5xl font-semibold tabular-nums text-text">
-                  {stats.mediaLicoes.toFixed(1)}
-                </p>
-                <p className="mt-2 text-sm text-text-muted">
-                  de {ABRIGO_TOTAL_LICOES} possíveis
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Ranking por célula (só admin) */}
-          {isAdmin && byCell.length > 0 && (
-            <div className="card">
-              <div className="mb-4">
-                <h2 className="text-sm font-semibold text-text">Top células (por alunos)</h2>
-                <p className="text-xs text-text-muted">% mostra quantos já concluíram</p>
-              </div>
-              <div className="space-y-2">
-                {byCell.map((c) => (
-                  <div key={c.label} className="flex items-center gap-3">
-                    <span className="w-40 shrink-0 truncate text-xs text-text-muted">{c.label}</span>
-                    <div className="relative flex-1">
-                      <div className="h-6 rounded-md bg-surface-2" />
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-md bg-text/90"
-                        style={{ width: `${Math.min(100, (c.total / Math.max(...byCell.map(x => x.total))) * 100)}%` }}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-between px-2 text-xs">
-                        <span className="font-medium text-black mix-blend-difference">
-                          {c.total} aluno{c.total === 1 ? '' : 's'}
-                        </span>
-                        <span className="text-text-muted">{c.pct}% concluídos</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Filtros + tabela de alunos */}
-          <div>
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="card flex flex-1 items-center gap-3 !py-2.5">
-                <Search size={16} className="text-text-subtle" />
-                <input
-                  type="search"
-                  className="w-full border-0 bg-transparent p-0 text-sm text-text outline-none placeholder:text-text-subtle focus:ring-0"
-                  placeholder="Buscar por nome ou célula…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </div>
-              <div className="flex gap-1 rounded-md bg-surface-2 p-1">
-                {([
-                  { v: 'todos', l: 'Todos' },
-                  { v: 'concluidos', l: 'Concluídos' },
-                  { v: 'andamento', l: 'Em andamento' },
-                  { v: 'parados', l: 'Não iniciaram' },
-                ] as const).map((opt) => (
-                  <button
-                    key={opt.v}
-                    onClick={() => setFilter(opt.v)}
-                    className={cn(
-                      'rounded px-3 py-1.5 text-xs transition-colors',
-                      filter === opt.v
-                        ? 'bg-surface text-text'
-                        : 'text-text-muted hover:text-text',
-                    )}
-                  >
-                    {opt.l}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="card overflow-hidden p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-left text-xs font-medium text-text-muted">
-                    <tr className="border-b border-border">
-                      <th className="px-4 py-3">Aluno</th>
-                      <th className="px-4 py-3">Célula</th>
-                      <th className="px-4 py-3 text-right">Lições</th>
-                      <th className="px-4 py-3">Progresso</th>
-                      <th className="px-4 py-3">Status</th>
-                      {isAdmin && <th className="px-4 py-3 text-right">Ações</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={isAdmin ? 6 : 5}
-                          className="px-4 py-10 text-center text-text-muted"
-                        >
-                          Nenhum aluno encontrado.
-                        </td>
-                      </tr>
-                    ) : (
-                      filtered.map((a) => (
-                        <tr
-                          key={a.id}
-                          className="border-b border-border last:border-0 transition-colors hover:bg-surface-2"
-                        >
-                          <td className="px-4 py-3">
-                            <p className="font-medium text-text">{a.nome}</p>
-                            {a.aulasFeitas && (
-                              <p className="truncate text-xs text-text-muted" title={a.aulasFeitas}>
-                                Feitas: {a.aulasFeitas}
-                              </p>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-text-muted">{a.celula || '—'}</td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="tabular-nums text-text">
-                              {a.totalLicoes}
-                            </span>
-                            <span className="text-text-subtle"> / {ABRIGO_TOTAL_LICOES}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <ProgressBar value={a.totalLicoes} max={ABRIGO_TOTAL_LICOES} />
-                          </td>
-                          <td className="px-4 py-3">
-                            {a.concluido ? (
-                              <span className="badge badge-success">
-                                <span className="badge-dot bg-current" /> Concluído
-                              </span>
-                            ) : a.totalLicoes === 0 ? (
-                              <span className="badge badge-neutral">
-                                <span className="badge-dot bg-current" /> Não iniciou
-                              </span>
-                            ) : (
-                              <span className="badge badge-warning">
-                                <span className="badge-dot bg-current" /> Em andamento
-                              </span>
-                            )}
-                          </td>
-                          {isAdmin && (
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                onClick={() => setEditing(a)}
-                                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-text-muted transition-colors hover:bg-surface-2 hover:text-text"
-                              >
-                                <Pencil size={14} /> Editar
-                              </button>
-                            </td>
-                          )}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {isAdmin && (
-            <AbrigoEditDialog
-              aluno={editing}
-              onOpenChange={(open) => !open && setEditing(null)}
-              onSubmit={(patch) => editing && update.mutate({ id: editing.id, patch })}
-              submitting={update.isPending}
-            />
-          )}
-        </>
-      )}
+        <TabPanel value="alunos">
+          <AlunosPanel
+            alunos={alunos}
+            isLoading={alunosQ.isLoading}
+            isAdmin={isAdmin}
+            onEdit={(a, patch) => update.mutate({ id: a.id, patch })}
+            saving={update.isPending}
+          />
+        </TabPanel>
+        <TabPanel value="aulas">
+          <AulasPanel aulas={aulas} isLoading={aulasQ.isLoading} />
+        </TabPanel>
+        <TabPanel value="formacao">
+          <EmFormacaoPanel
+            alunos={alunos}
+            aulas={aulas}
+            isLoading={alunosQ.isLoading}
+          />
+        </TabPanel>
+        <TabPanel value="formandos">
+          <FormandosPanel alunos={alunos} isLoading={alunosQ.isLoading} />
+        </TabPanel>
+      </Tabs>
     </section>
   );
 }
 
-// ---------- Subcomponentes ----------
+// ============== ALUNOS ==============
 
-const tooltipStyle: React.CSSProperties = {
-  background: 'var(--surface-2)',
-  border: '1px solid var(--border-strong)',
-  borderRadius: 8,
-  fontSize: 12,
-  color: 'var(--text)',
-};
-
-function KPI({
-  icon: Icon,
-  label,
-  value,
-  hint,
+function AlunosPanel({
+  alunos,
+  isLoading,
+  isAdmin,
+  onEdit,
+  saving,
 }: {
-  icon: LucideIcon;
-  label: string;
-  value: number;
-  hint?: string;
+  alunos: AbrigoAluno[];
+  isLoading: boolean;
+  isAdmin: boolean;
+  onEdit: (a: AbrigoAluno, patch: Partial<AbrigoAluno>) => void;
+  saving: boolean;
 }) {
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState<StatusFilter>('todos');
+  const [celula, setCelula] = useState('');
+  const [editing, setEditing] = useState<AbrigoAluno | null>(null);
+  const debounced = useDebounced(query, 200);
+
+  const celulaOptions = useMemo(
+    () => uniqueOptions(alunos.map((a) => a.celula)),
+    [alunos],
+  );
+
+  const filtered = useMemo(() => {
+    const q = debounced.trim().toLowerCase();
+    return alunos.filter((a) => {
+      if (q && !a.nome.toLowerCase().includes(q) && !a.celula.toLowerCase().includes(q))
+        return false;
+      if (celula && a.celula !== celula) return false;
+      if (status === 'concluidos' && !a.concluido) return false;
+      if (status === 'andamento' && (a.concluido || a.totalLicoes === 0)) return false;
+      if (status === 'parados' && a.totalLicoes > 0) return false;
+      return true;
+    });
+  }, [alunos, debounced, status, celula]);
+
+  const columns: Column<AbrigoAluno>[] = [
+    {
+      key: 'nome',
+      header: 'Aluno',
+      sortValue: (a) => a.nome.toLowerCase(),
+      cell: (a) => (
+        <div className="min-w-[180px]">
+          <p className="font-medium text-text">{a.nome}</p>
+          {a.aulasFeitas && (
+            <p
+              className="truncate text-xs text-text-muted"
+              title={a.aulasFeitas}
+            >
+              Feitas: {a.aulasFeitas}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'celula',
+      header: 'Célula',
+      sortValue: (a) => a.celula.toLowerCase(),
+      cell: (a) => <span className="text-text-muted">{a.celula || '—'}</span>,
+      hideOn: 'sm',
+    },
+    {
+      key: 'licoes',
+      header: 'Lições',
+      align: 'right',
+      sortValue: (a) => a.totalLicoes,
+      cell: (a) => (
+        <span className="whitespace-nowrap tabular-nums">
+          <span className="font-semibold text-text">{a.totalLicoes}</span>
+          <span className="text-text-subtle"> / {ABRIGO_TOTAL_LICOES}</span>
+        </span>
+      ),
+      width: '110px',
+    },
+    {
+      key: 'progress',
+      header: 'Progresso',
+      sortValue: (a) => a.totalLicoes,
+      cell: (a) => <ProgressBar value={a.totalLicoes} max={ABRIGO_TOTAL_LICOES} />,
+      width: '180px',
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (a) => (
+        <span
+          className={cn(
+            'badge whitespace-nowrap',
+            a.concluido
+              ? 'badge-success'
+              : a.totalLicoes === 0
+                ? 'badge-neutral'
+                : a.totalLicoes === 9
+                  ? 'badge-primary'
+                  : 'badge-warning',
+          )}
+        >
+          <span className="badge-dot bg-current" />
+          {a.concluido
+            ? 'Concluído'
+            : a.totalLicoes === 0
+              ? 'Não iniciou'
+              : a.totalLicoes === 9
+                ? 'Em formação'
+                : 'Em andamento'}
+        </span>
+      ),
+      width: '150px',
+    },
+  ];
+
   return (
-    <div className="card card-hover">
-      <div className="mb-3 flex items-center gap-2 text-text-muted">
-        <Icon size={15} />
-        <span className="text-xs">{label}</span>
-      </div>
-      <p className="text-3xl font-semibold tabular-nums text-text">{value}</p>
-      {hint && <p className="mt-1 text-xs text-text-subtle">{hint}</p>}
-    </div>
+    <>
+      <FilterBar>
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Buscar por nome ou célula…"
+        />
+        <SegmentedControl
+          value={status}
+          onChange={setStatus}
+          options={[
+            { label: 'Todos', value: 'todos' },
+            { label: 'Concluídos', value: 'concluidos' },
+            { label: 'Andamento', value: 'andamento' },
+            { label: 'Parados', value: 'parados' },
+          ]}
+        />
+        {celulaOptions.length > 0 && (
+          <FilterSelect
+            label="Célula"
+            value={celula}
+            onChange={setCelula}
+            options={[{ label: 'Todas', value: '' }, ...celulaOptions]}
+          />
+        )}
+      </FilterBar>
+
+      <DataTable
+        data={filtered}
+        columns={columns}
+        rowKey={(a) => a.id}
+        isLoading={isLoading}
+        emptyTitle="Nenhum aluno encontrado"
+        emptyDescription={
+          query || celula || status !== 'todos'
+            ? 'Tente ajustar os filtros.'
+            : 'A planilha Abrigo_Total ainda não tem alunos.'
+        }
+        onRowClick={isAdmin ? (a) => setEditing(a) : undefined}
+        actions={
+          isAdmin
+            ? (a) => (
+                <IconButton label="Editar" onClick={() => setEditing(a)}>
+                  <Pencil size={14} />
+                </IconButton>
+              )
+            : undefined
+        }
+      />
+
+      {isAdmin && (
+        <AbrigoEditDialog
+          aluno={editing}
+          onOpenChange={(open) => !open && setEditing(null)}
+          onSubmit={(patch) => {
+            if (!editing) return;
+            onEdit(editing, patch);
+            setEditing(null);
+          }}
+          submitting={saving}
+        />
+      )}
+    </>
   );
 }
 
-function ProgressBar({ value, max }: { value: number; max: number }) {
-  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+// ============== AULAS ==============
+
+function AulasPanel({
+  aulas,
+  isLoading,
+}: {
+  aulas: AbrigoAula[];
+  isLoading: boolean;
+}) {
+  const [query, setQuery] = useState('');
+  const debounced = useDebounced(query, 150);
+
+  const filtered = useMemo(() => {
+    const q = debounced.trim().toLowerCase();
+    if (!q) return aulas;
+    return aulas.filter(
+      (a) =>
+        a.titulo.toLowerCase().includes(q) || a.numero.toLowerCase().includes(q),
+    );
+  }, [aulas, debounced]);
+
+  if (!isLoading && aulas.length === 0) {
+    return (
+      <div className="card">
+        <Empty
+          icon={BookOpen}
+          title="Nenhuma aula cadastrada"
+          description="A aba 'DADOS ' (com espaço) da planilha de Abrigo está vazia ou não foi encontrada."
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="relative h-2 w-32 overflow-hidden rounded-full bg-surface-2">
-      <div
-        className={cn(
-          'absolute inset-y-0 left-0 rounded-full transition-all',
-          value >= max ? 'bg-text' : 'bg-text/60',
+    <>
+      <FilterBar>
+        <div className="flex min-w-[180px] flex-1 items-center gap-2">
+          <Search size={15} className="text-text-subtle" />
+          <input
+            type="search"
+            className="w-full border-0 bg-transparent p-0 text-sm text-text outline-none placeholder:text-text-subtle focus:ring-0"
+            placeholder="Buscar aula por número ou título…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      </FilterBar>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {isLoading ? (
+          <div className="card text-text-muted sm:col-span-2 lg:col-span-3">
+            Carregando aulas…
+          </div>
+        ) : (
+          filtered.map((a) => (
+            <div
+              key={`${a.numero}-${a.titulo}`}
+              className="card card-hover flex items-start gap-3"
+            >
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-semibold"
+                style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}
+              >
+                {a.numero || '–'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-sm font-medium text-text">{a.titulo}</p>
+                <p className="mt-0.5 text-xs text-text-subtle">
+                  Lição do programa Abrigo
+                </p>
+              </div>
+            </div>
+          ))
         )}
-        style={{ width: `${pct}%` }}
+      </div>
+    </>
+  );
+}
+
+// ============== EM FORMAÇÃO (9 de 10 lições) ==============
+
+function EmFormacaoPanel({
+  alunos,
+  aulas,
+  isLoading,
+}: {
+  alunos: AbrigoAluno[];
+  aulas: AbrigoAula[];
+  isLoading: boolean;
+}) {
+  const emFormacao = useMemo(
+    () => alunos.filter((a) => a.totalLicoes === 9 && !a.concluido),
+    [alunos],
+  );
+
+  const [query, setQuery] = useState('');
+  const [aulaFaltando, setAulaFaltando] = useState('');
+  const [mes, setMes] = useState('');
+  const debounced = useDebounced(query, 200);
+
+  const aulaOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const a of emFormacao) {
+      const num = extractFirstNumber(a.aulasFaltando);
+      if (num) set.add(num);
+    }
+    return [...set].sort((a, b) => Number(a) - Number(b)).map((num) => {
+      const aula = aulas.find((x) => x.numero === num);
+      return {
+        label: aula ? `${num} · ${aula.titulo}` : `Aula ${num}`,
+        value: num,
+      };
+    });
+  }, [emFormacao, aulas]);
+
+  const mesOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const a of emFormacao) {
+      const k = monthKey(a.dataCadastro);
+      if (k) set.add(k);
+    }
+    return [...set]
+      .sort()
+      .reverse()
+      .map((k) => ({ label: monthLabel(k), value: k }));
+  }, [emFormacao]);
+
+  const filtered = useMemo(() => {
+    const q = debounced.trim().toLowerCase();
+    return emFormacao.filter((a) => {
+      if (q && !a.nome.toLowerCase().includes(q) && !a.celula.toLowerCase().includes(q))
+        return false;
+      if (aulaFaltando) {
+        const n = extractFirstNumber(a.aulasFaltando);
+        if (n !== aulaFaltando) return false;
+      }
+      if (mes) {
+        if (monthKey(a.dataCadastro) !== mes) return false;
+      }
+      return true;
+    });
+  }, [emFormacao, debounced, aulaFaltando, mes]);
+
+  const columns: Column<AbrigoAluno>[] = [
+    {
+      key: 'nome',
+      header: 'Aluno',
+      sortValue: (a) => a.nome.toLowerCase(),
+      cell: (a) => (
+        <div>
+          <p className="font-medium text-text">{a.nome}</p>
+          <p className="text-xs text-text-muted">{a.celula || '—'}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'falta',
+      header: 'Aula que falta',
+      cell: (a) => {
+        const num = extractFirstNumber(a.aulasFaltando);
+        const aula = num ? aulas.find((x) => x.numero === num) : null;
+        return (
+          <div className="min-w-[160px]">
+            {num ? (
+              <>
+                <p className="font-medium text-text">Aula {num}</p>
+                {aula && (
+                  <p className="truncate text-xs text-text-muted" title={aula.titulo}>
+                    {aula.titulo}
+                  </p>
+                )}
+              </>
+            ) : (
+              <span className="text-text-muted">—</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'progresso',
+      header: 'Progresso',
+      cell: () => <ProgressBar value={9} max={ABRIGO_TOTAL_LICOES} />,
+      width: '180px',
+    },
+    {
+      key: 'cadastro',
+      header: 'Cadastro',
+      sortValue: (a) => a.dataCadastro || '',
+      cell: (a) => (
+        <span className="text-xs text-text-subtle">
+          {a.dataCadastro || '—'}
+        </span>
+      ),
+      hideOn: 'md',
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="card">
+          <p className="text-xs text-text-muted">Quase formandos</p>
+          <p
+            className="mt-1 text-3xl font-semibold tabular-nums"
+            style={{ color: 'var(--primary)' }}
+          >
+            {formatNumber(emFormacao.length)}
+          </p>
+          <p className="mt-1 text-xs text-text-subtle">
+            Precisam apenas da última lição
+          </p>
+        </div>
+        <div className="card sm:col-span-2">
+          <p className="mb-2 text-xs text-text-muted">Aulas pendentes mais frequentes</p>
+          {aulaOptions.length === 0 ? (
+            <p className="text-sm text-text-subtle">Nada pendente.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {aulaOptions.slice(0, 5).map((o) => {
+                const total = emFormacao.filter(
+                  (a) => extractFirstNumber(a.aulasFaltando) === o.value,
+                ).length;
+                return (
+                  <li
+                    key={o.value}
+                    className="flex items-center justify-between text-xs"
+                  >
+                    <span className="truncate text-text-muted">{o.label}</span>
+                    <span className="tabular-nums text-text">
+                      {formatNumber(total)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <FilterBar>
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Buscar aluno ou célula…"
+        />
+        {aulaOptions.length > 0 && (
+          <FilterSelect
+            label="Aula faltando"
+            value={aulaFaltando}
+            onChange={setAulaFaltando}
+            options={[{ label: 'Todas', value: '' }, ...aulaOptions]}
+          />
+        )}
+        {mesOptions.length > 0 && (
+          <FilterSelect
+            label="Período de cadastro"
+            value={mes}
+            onChange={setMes}
+            options={[{ label: 'Todos', value: '' }, ...mesOptions]}
+          />
+        )}
+      </FilterBar>
+
+      <DataTable
+        data={filtered}
+        columns={columns}
+        rowKey={(a) => a.id}
+        isLoading={isLoading}
+        emptyTitle="Ninguém em formação no momento"
+        emptyDescription="Quando um aluno completar 9 lições, ele aparece aqui até concluir a última."
       />
     </div>
   );
 }
 
-// unused (kept for clarity)
-void GraduationCap;
+// ============== FORMANDOS ==============
+
+function FormandosPanel({
+  alunos,
+  isLoading,
+}: {
+  alunos: AbrigoAluno[];
+  isLoading: boolean;
+}) {
+  const formandos = useMemo(
+    () =>
+      alunos
+        .filter((a) => a.concluido)
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+    [alunos],
+  );
+
+  const byCell = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of formandos) {
+      const k = f.celula || 'Sem célula';
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return [...m.entries()]
+      .map(([nome, total]) => ({ nome, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [formandos]);
+
+  const columns: Column<AbrigoAluno>[] = [
+    {
+      key: 'nome',
+      header: 'Formando',
+      sortValue: (a) => a.nome.toLowerCase(),
+      cell: (a) => <p className="font-medium text-text">{a.nome}</p>,
+    },
+    {
+      key: 'celula',
+      header: 'Célula',
+      sortValue: (a) => a.celula.toLowerCase(),
+      cell: (a) => <span className="text-text-muted">{a.celula || '—'}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: () => (
+        <span className="badge badge-success">
+          <span className="badge-dot bg-current" /> Concluído
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="card">
+          <p className="text-xs text-text-muted">Total de formandos</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums text-text">
+            {formatNumber(formandos.length)}
+          </p>
+        </div>
+        <div className="card sm:col-span-2">
+          <p className="mb-2 text-xs text-text-muted">Formandos por célula</p>
+          {byCell.length === 0 ? (
+            <p className="text-sm text-text-subtle">Ainda sem formandos.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {byCell.slice(0, 6).map((c) => (
+                <li
+                  key={c.nome}
+                  className="flex items-center justify-between text-xs"
+                >
+                  <span className="truncate text-text-muted">{c.nome}</span>
+                  <span className="tabular-nums text-text">
+                    {formatNumber(c.total)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <DataTable
+        data={formandos}
+        columns={columns}
+        rowKey={(a) => a.id}
+        isLoading={isLoading}
+        emptyTitle="Ainda sem formandos"
+        emptyDescription="Os alunos aparecem aqui ao concluir as 10 lições."
+      />
+    </div>
+  );
+}
+
+// ============== Helpers ==============
+
+function ProgressBar({ value, max }: { value: number; max: number }) {
+  const p = Math.max(0, Math.min(100, (value / max) * 100));
+  const done = value >= max;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative h-2 w-full max-w-[140px] overflow-hidden rounded-full bg-surface-2">
+        <div
+          className="absolute inset-y-0 left-0 rounded-full transition-all"
+          style={{
+            width: `${p}%`,
+            background: done ? 'var(--success)' : 'var(--primary)',
+          }}
+        />
+      </div>
+      <span className="text-xs tabular-nums text-text-muted">
+        {Math.round(p)}%
+      </span>
+    </div>
+  );
+}
+
+function Kpi({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  tone = 'neutral',
+}: {
+  icon: typeof Users;
+  label: string;
+  value: number;
+  hint?: string;
+  tone?: 'neutral' | 'primary' | 'success';
+}) {
+  const tint =
+    tone === 'primary'
+      ? { background: 'var(--primary-soft)', color: 'var(--primary)' }
+      : tone === 'success'
+        ? { background: 'var(--success-soft)', color: 'var(--success)' }
+        : { background: 'var(--surface-2)', color: 'var(--text-muted)' };
+  return (
+    <div className="card card-hover">
+      <div className="flex items-start gap-3">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+          style={tint}
+        >
+          <Icon size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-text-muted">{label}</p>
+          <p className="mt-0.5 text-2xl font-semibold tabular-nums text-text">
+            {formatNumber(value)}
+          </p>
+          {hint && <p className="mt-0.5 text-xs text-text-subtle">{hint}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function uniqueOptions(values: string[]): Array<{ label: string; value: string }> {
+  const set = new Set<string>();
+  for (const v of values) {
+    const t = (v ?? '').trim();
+    if (t) set.add(t);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((v) => ({
+    label: v,
+    value: v,
+  }));
+}
+
+function pct(n: number, total: number): number {
+  return total === 0 ? 0 : (n / total) * 100;
+}
+
+function extractFirstNumber(s: string): string | null {
+  const m = (s ?? '').match(/(\d+)/);
+  return m ? m[1] ?? null : null;
+}
+
+/** Extrai "YYYY-MM" de data BR (dd/mm/yyyy) ou ISO. */
+function monthKey(raw?: string): string | null {
+  if (!raw) return null;
+  const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (br) {
+    const mm = (br[2] ?? '').padStart(2, '0');
+    return `${br[3]}-${mm}`;
+  }
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) {
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${m}`;
+  }
+  return null;
+}
+
+function monthLabel(k: string): string {
+  const [y, m] = k.split('-');
+  const names = [
+    'Jan',
+    'Fev',
+    'Mar',
+    'Abr',
+    'Mai',
+    'Jun',
+    'Jul',
+    'Ago',
+    'Set',
+    'Out',
+    'Nov',
+    'Dez',
+  ];
+  const i = Number(m) - 1;
+  return `${names[i] ?? m}/${y}`;
+}

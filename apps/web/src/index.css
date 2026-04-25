@@ -3,26 +3,44 @@
 @tailwind utilities;
 
 :root {
-  /* Paleta preto/branco/cinza */
-  --bg: #000000;
-  --surface: #0d0d0d;
-  --surface-2: #141414;
-  --border: #222222;
-  --border-strong: #333333;
-  --text: #f5f5f5;
-  --text-muted: #a3a3a3;
-  --text-subtle: #6b6b6b;
-  --primary: #f5f5f5;         /* "primary" é o branco — contrasta com preto */
-  --primary-hover: #ffffff;
-  --primary-soft: rgba(245, 245, 245, 0.08);
-  --on-primary: #000000;      /* texto sobre botão primário */
-  --accent: #d4d4d4;           /* cinza claro para detalhes */
-  --success: #d4d4d4;
-  --success-soft: rgba(255, 255, 255, 0.06);
-  --warning: #a3a3a3;
-  --warning-soft: rgba(255, 255, 255, 0.04);
-  --danger: #f87171;
-  --danger-soft: rgba(248, 113, 113, 0.08);
+  /* Tema claro — branco/cinza claro com vinho como destaque */
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #f1f2f5;
+  --surface-muted: #fafafb;
+  --border: #e6e7ec;
+  --border-strong: #d0d2d9;
+  --text: #14161a;
+  --text-muted: #5b6170;
+  --text-subtle: #8a8f9d;
+
+  /* Vermelho vinho / burgundy — identidade da igreja */
+  --primary: #7f1d2b;
+  --primary-hover: #6a1623;
+  --primary-soft: rgba(127, 29, 43, 0.08);
+  --primary-strong: rgba(127, 29, 43, 0.18);
+  --on-primary: #ffffff;
+  --accent: #a1344a;
+
+  /* Sidebar escura elegante (grafite quase preto, não puro) */
+  --sidebar-bg: #17171a;
+  --sidebar-border: #252529;
+  --sidebar-text: #e7e7ea;
+  --sidebar-text-muted: #8e8e95;
+  --sidebar-active-bg: rgba(127, 29, 43, 0.18);
+  --sidebar-active-text: #ffffff;
+  --sidebar-hover: rgba(255, 255, 255, 0.04);
+
+  --success: #2e7d52;
+  --success-soft: rgba(46, 125, 82, 0.1);
+  --warning: #a86f17;
+  --warning-soft: rgba(168, 111, 23, 0.1);
+  --danger: #b3261e;
+  --danger-soft: rgba(179, 38, 30, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(20, 22, 26, 0.04);
+  --shadow-md: 0 4px 14px rgba(20, 22, 26, 0.06);
+  --shadow-lg: 0 18px 40px rgba(20, 22, 26, 0.08);
 }
 
 html,
@@ -67,18 +85,20 @@ h6 {
   }
 
   .card {
-    @apply rounded-lg p-5;
+    @apply rounded-xl p-5;
     background: var(--surface);
     border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
   }
 
   .card-hover:hover {
     border-color: var(--border-strong);
+    box-shadow: var(--shadow-md);
   }
 
   .kicker {
     @apply text-[11px] font-medium uppercase tracking-wider;
-    color: var(--text-subtle);
+    color: var(--primary);
   }
 
   .page-title {
@@ -99,8 +119,8 @@ h6 {
   .input,
   .select,
   .textarea {
-    @apply w-full rounded-md px-3 py-2 text-sm transition-colors;
-    background: var(--surface-2);
+    @apply w-full rounded-lg px-3 py-2 text-sm transition-colors;
+    background: var(--surface);
     color: var(--text);
     border: 1px solid var(--border);
     outline: none;
@@ -117,8 +137,13 @@ h6 {
   .input:focus,
   .select:focus,
   .textarea:focus {
-    border-color: var(--text);
+    border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-soft);
+  }
+  .input:disabled,
+  .select:disabled {
+    background: var(--surface-2);
+    color: var(--text-muted);
   }
   .input[aria-invalid='true'],
   .select[aria-invalid='true'] {
@@ -129,7 +154,7 @@ h6 {
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all;
   }
   .btn:disabled {
     @apply cursor-not-allowed opacity-60;
@@ -139,20 +164,22 @@ h6 {
     @apply btn;
     background: var(--primary);
     color: var(--on-primary);
+    box-shadow: var(--shadow-sm);
   }
   .btn-primary:hover:not(:disabled) {
     background: var(--primary-hover);
+    box-shadow: var(--shadow-md);
   }
 
   .btn-secondary {
     @apply btn;
-    background: var(--surface-2);
+    background: var(--surface);
     color: var(--text);
     border: 1px solid var(--border);
   }
   .btn-secondary:hover:not(:disabled) {
     border-color: var(--border-strong);
-    background: var(--surface);
+    background: var(--surface-2);
   }
 
   .btn-ghost {
@@ -166,13 +193,13 @@ h6 {
   }
 
   .link {
-    color: var(--text);
+    color: var(--primary);
     text-decoration: underline;
-    text-decoration-color: var(--border-strong);
+    text-decoration-color: var(--primary-strong);
     text-underline-offset: 3px;
   }
   .link:hover {
-    text-decoration-color: var(--text);
+    text-decoration-color: var(--primary);
   }
 
   .badge {
@@ -183,22 +210,28 @@ h6 {
   }
   .badge-success {
     background: var(--success-soft);
-    color: var(--text);
-    border: 1px solid var(--border);
+    color: var(--success);
+    border: 1px solid rgba(46, 125, 82, 0.2);
   }
   .badge-warning {
     background: var(--warning-soft);
-    color: var(--text-muted);
-    border: 1px solid var(--border);
+    color: var(--warning);
+    border: 1px solid rgba(168, 111, 23, 0.2);
   }
   .badge-neutral {
     background: var(--surface-2);
     color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  .badge-primary {
+    background: var(--primary-soft);
+    color: var(--primary);
+    border: 1px solid var(--primary-strong);
   }
   .badge-danger {
     background: var(--danger-soft);
     color: var(--danger);
-    border: 1px solid rgba(248, 113, 113, 0.35);
+    border: 1px solid rgba(179, 38, 30, 0.25);
   }
 
   .divider {
@@ -219,10 +252,18 @@ h6 {
   border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4a4a4a;
+  background: #9ea1aa;
 }
 
+/* Leaflet — garantir contraste em tiles claros */
 .leaflet-container {
-  background: #000 !important;
+  background: var(--surface-2) !important;
   font-family: 'Inter', sans-serif;
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+}
+.leaflet-popup-tip {
+  box-shadow: none;
 }

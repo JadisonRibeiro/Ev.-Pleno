@@ -5,12 +5,20 @@ import {
   findAlunoById,
   listAlunos,
   listAlunosByCell,
+  listAulas,
   updateAluno,
 } from '../services/abrigo.service.js';
 import { asyncHandler } from '../lib/async-handler.js';
 
 const router = Router();
 router.use(requireAuth);
+
+router.get(
+  '/aulas',
+  asyncHandler(async (_req, res) => {
+    res.json({ aulas: await listAulas() });
+  }),
+);
 
 router.get(
   '/',

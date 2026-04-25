@@ -1,9 +1,16 @@
 import { readSheet, updateRow } from '../lib/sheets.js';
 import { TTLCache } from '../lib/cache.js';
 import { SHEETS } from '../config.js';
-import { ABRIGO_COLUMNS, ABRIGO_TOTAL_LICOES, type AbrigoAluno } from '../types/domain.js';
+import {
+  ABRIGO_COLUMNS,
+  ABRIGO_TOTAL_LICOES,
+  type AbrigoAluno,
+  type AbrigoAula,
+} from '../types/domain.js';
+import { listMembers } from './members.service.js';
 
 const cache = new TTLCache<AbrigoAluno[]>(30_000);
+const aulasCache = new TTLCache<AbrigoAula[]>(5 * 60_000);
 
 type SheetRow = Record<string, string> & { _row: number };
 
@@ -36,13 +43,38 @@ function parseAlunoId(id: string): number | null {
   return Number.isFinite(n) && n >= 2 ? n : null;
 }
 
+function normalizeName(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
 export async function listAlunos(): Promise<AbrigoAluno[]> {
   const cached = cache.get('all');
   if (cached) return cached;
   const rows = await readSheet<SheetRow>(SHEETS.abrigo);
-  const items = rows.map(rowToAluno).filter((a) => a.nome);
-  cache.set('all', items);
-  return items;
+  const base = rows.map(rowToAluno).filter((a) => a.nome);
+
+  // Join com membros: anexa dataCadastro quando há match por nome.
+  try {
+    const members = await listMembers();
+    const index = new Map<string, string>();
+    for (const m of members) {
+      const k = normalizeName(m.nome);
+      if (k && !index.has(k)) index.set(k, m.dataCadastro);
+    }
+    for (const a of base) {
+      const hit = index.get(normalizeName(a.nome));
+      if (hit) a.dataCadastro = hit;
+    }
+  } catch (err) {
+    console.warn('[abrigo] falha no join com membros (segue sem dataCadastro):', err);
+  }
+
+  cache.set('all', base);
+  return base;
 }
 
 export async function listAlunosByCell(cellName: string): Promise<AbrigoAluno[]> {
@@ -63,6 +95,24 @@ export async function findAlunoById(id: string): Promise<AbrigoAluno | undefined
  * Atenção: se essas colunas tiverem fórmulas na planilha,
  * a gravação vai substituí-las por valores estáticos.
  */
+/**
+ * Lista as 10 aulas do programa (aba `DADOS `).
+ * Espera colunas `x` e `AULA`.
+ */
+export async function listAulas(): Promise<AbrigoAula[]> {
+  const cached = aulasCache.get('all');
+  if (cached) return cached;
+  const rows = await readSheet<Record<string, string> & { _row: number }>(SHEETS.abrigoAulas);
+  const aulas = rows
+    .map((r) => ({
+      numero: (r['x'] ?? '').trim(),
+      titulo: (r['AULA'] ?? '').trim(),
+    }))
+    .filter((a) => a.titulo);
+  aulasCache.set('all', aulas);
+  return aulas;
+}
+
 export async function updateAluno(
   row: number,
   updates: Partial<

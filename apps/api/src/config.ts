@@ -25,6 +25,9 @@ const schema = z.object({
   SHEETS_AMOR_TAB: z.string().default('Respostas ao formulário 1'),
   SHEETS_ABRIGO_ID: z.string().min(10),
   SHEETS_ABRIGO_TAB: z.string().default('Abrigo_Total'),
+  // Aba com a lista das 10 aulas. Observação: na planilha o nome vem
+  // com espaço em branco no final ('DADOS ').
+  SHEETS_ABRIGO_AULAS_TAB: z.string().default('DADOS '),
 
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   GOOGLE_APPLICATION_CREDENTIALS: z
@@ -65,7 +68,7 @@ export interface SheetRef {
 }
 
 export const SHEETS: Record<
-  'usuarios' | 'celulas' | 'membros' | 'amor' | 'abrigo',
+  'usuarios' | 'celulas' | 'membros' | 'amor' | 'abrigo' | 'abrigoAulas',
   SheetRef
 > = {
   usuarios: { id: config.SHEETS_USUARIOS_ID, tab: config.SHEETS_USUARIOS_TAB },
@@ -73,4 +76,8 @@ export const SHEETS: Record<
   membros: { id: config.SHEETS_MEMBROS_ID, tab: config.SHEETS_MEMBROS_TAB },
   amor: { id: config.SHEETS_AMOR_ID, tab: config.SHEETS_AMOR_TAB },
   abrigo: { id: config.SHEETS_ABRIGO_ID, tab: config.SHEETS_ABRIGO_TAB },
+  abrigoAulas: {
+    id: config.SHEETS_ABRIGO_ID,
+    tab: config.SHEETS_ABRIGO_AULAS_TAB,
+  },
 };

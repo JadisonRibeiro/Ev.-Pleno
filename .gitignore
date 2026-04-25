@@ -13,3 +13,12 @@ apps/*/dist
 apps/*/.turbo
 apps/api/credentials.json
 *.tsbuildinfo
+
+# Compiled JS/declaration leaks ao lado de fontes TS (front-end)
+apps/web/src/**/*.js
+apps/web/src/**/*.d.ts
+!apps/web/src/vite-env.d.ts
+
+# Compilados de vite.config.ts gerados durante typecheck
+apps/*/vite.config.js
+apps/*/vite.config.d.ts

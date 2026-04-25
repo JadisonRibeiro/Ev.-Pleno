@@ -70,6 +70,13 @@ export interface AbrigoAluno {
   statusConclusao: string;
   progresso: string;
   concluido: boolean;
+  /** Data de cadastro do membro (join por nome no backend). */
+  dataCadastro?: string;
 }
 
 export const ABRIGO_TOTAL_LICOES = 10;
+
+export interface AbrigoAula {
+  numero: string;
+  titulo: string;
+}

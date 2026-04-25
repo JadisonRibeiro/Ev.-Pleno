@@ -1,4 +1,4 @@
-import { readSheet, updateRow } from '../lib/sheets.js';
+import { appendRow, readSheet, updateRow } from '../lib/sheets.js';
 import { TTLCache } from '../lib/cache.js';
 import { SHEETS } from '../config.js';
 import { CELL_COLUMNS, type Cell } from '../types/domain.js';
@@ -60,7 +60,44 @@ export async function updateCell(
   if (updates.longitude !== undefined) raw[CELL_COLUMNS.longitude] = updates.longitude;
   if (updates.tipo !== undefined) raw[CELL_COLUMNS.tipo] = updates.tipo;
   if (updates.cor !== undefined) raw[CELL_COLUMNS.cor] = updates.cor;
+  if (updates.lider !== undefined) raw[CELL_COLUMNS.lider] = updates.lider;
+  if (updates.fotoPerfil !== undefined) raw[CELL_COLUMNS.fotoPerfil] = updates.fotoPerfil;
 
   await updateRow(SHEETS.celulas, row, raw);
   cache.invalidate();
+}
+
+export async function createCell(
+  input: Partial<Omit<Cell, '_row'>> & { nome: string },
+): Promise<Cell> {
+  const raw: Record<string, string> = {
+    [CELL_COLUMNS.nome]: input.nome,
+    [CELL_COLUMNS.lider]: input.lider ?? '',
+    [CELL_COLUMNS.status]: input.status ?? 'Ativa',
+    [CELL_COLUMNS.cidade]: input.cidade ?? '',
+    [CELL_COLUMNS.bairro]: input.bairro ?? '',
+    [CELL_COLUMNS.endereco]: input.endereco ?? '',
+    [CELL_COLUMNS.latitude]: input.latitude ?? '',
+    [CELL_COLUMNS.longitude]: input.longitude ?? '',
+    [CELL_COLUMNS.tipo]: input.tipo ?? '',
+    [CELL_COLUMNS.cor]: input.cor ?? '',
+    [CELL_COLUMNS.fotoPerfil]: input.fotoPerfil ?? '',
+  };
+
+  const row = await appendRow(SHEETS.celulas, raw);
+  cache.invalidate();
+  return {
+    _row: row,
+    nome: raw[CELL_COLUMNS.nome] ?? '',
+    lider: raw[CELL_COLUMNS.lider] ?? '',
+    status: raw[CELL_COLUMNS.status] ?? '',
+    cidade: raw[CELL_COLUMNS.cidade] ?? '',
+    bairro: raw[CELL_COLUMNS.bairro] ?? '',
+    endereco: raw[CELL_COLUMNS.endereco] ?? '',
+    latitude: raw[CELL_COLUMNS.latitude] ?? '',
+    longitude: raw[CELL_COLUMNS.longitude] ?? '',
+    tipo: raw[CELL_COLUMNS.tipo] ?? '',
+    cor: raw[CELL_COLUMNS.cor] ?? '',
+    fotoPerfil: raw[CELL_COLUMNS.fotoPerfil] ?? '',
+  };
 }
